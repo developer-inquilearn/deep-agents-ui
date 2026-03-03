@@ -123,14 +123,9 @@ export const MarkdownContent = React.memo<MarkdownContentProps>(
                 </div>
               );
             },
-            img({
-              src,
-              alt,
-            }: {
-              src?: string;
-              alt?: string;
-            }) {
-              if (!src) return null;
+            img(props: React.ImgHTMLAttributes<HTMLImageElement> & { node?: unknown }) {
+              const { src, alt } = props;
+              if (!src || typeof src !== "string") return null;
               return <img src={src} alt={alt ?? ""} className="max-w-full" />;
             },
           }}
