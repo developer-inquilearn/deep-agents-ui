@@ -2,38 +2,44 @@
 
 import React, { useState, useEffect, useCallback } from "react";
 
-const STORAGE_KEY = "app_pin_authed";
-const PIN = process.env.NEXT_PUBLIC_APP_PIN;
-
 export function PinGate({ children }: { children: React.ReactNode }) {
   const [authed, setAuthed] = useState<boolean | null>(null);
   const [input, setInput] = useState("");
   const [error, setError] = useState(false);
+  const [loading, setLoading] = useState(false);
 
+  // Check auth status on mount via httpOnly cookie (server validates it)
   useEffect(() => {
-    // If no PIN is configured, skip the gate entirely
-    if (!PIN) {
-      setAuthed(true);
-      return;
-    }
-    setAuthed(localStorage.getItem(STORAGE_KEY) === "true");
+    fetch("/api/auth")
+      .then((r) => r.json())
+      .then((data) => setAuthed(data.authenticated === true))
+      .catch(() => setAuthed(false));
   }, []);
 
   const handleSubmit = useCallback(
-    (e: React.FormEvent) => {
+    async (e: React.FormEvent) => {
       e.preventDefault();
-      if (input === PIN) {
-        localStorage.setItem(STORAGE_KEY, "true");
-        setAuthed(true);
-      } else {
-        setError(true);
-        setInput("");
+      setLoading(true);
+      try {
+        const res = await fetch("/api/auth", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ pin: input }),
+        });
+        if (res.ok) {
+          setAuthed(true);
+        } else {
+          setError(true);
+          setInput("");
+        }
+      } finally {
+        setLoading(false);
       }
     },
     [input]
   );
 
-  // Still checking localStorage
+  // Still checking
   if (authed === null) return null;
 
   if (authed) return <>{children}</>;
@@ -64,9 +70,10 @@ export function PinGate({ children }: { children: React.ReactNode }) {
           )}
           <button
             type="submit"
-            className="w-full rounded-md bg-[#2F6868] py-3 text-sm font-medium text-white hover:bg-[#2F6868]/80"
+            disabled={loading}
+            className="w-full rounded-md bg-[#2F6868] py-3 text-sm font-medium text-white hover:bg-[#2F6868]/80 disabled:opacity-60"
           >
-            Unlock
+            {loading ? "Checking..." : "Unlock"}
           </button>
         </form>
       </div>

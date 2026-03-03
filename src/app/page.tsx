@@ -231,17 +231,39 @@ function HomePageContent() {
   const [configDialogOpen, setConfigDialogOpen] = useState(false);
   const [assistantId, setAssistantId] = useQueryState("assistantId");
 
-  // On mount, check for saved config, otherwise show config dialog
+  // On mount: prefer server-configured env vars, fall back to localStorage
   useEffect(() => {
-    const savedConfig = getConfig();
-    if (savedConfig) {
-      setConfig(savedConfig);
-      if (!assistantId) {
-        setAssistantId(savedConfig.assistantId);
-      }
-    } else {
-      setConfigDialogOpen(true);
-    }
+    fetch("/api/config")
+      .then((r) => r.json())
+      .then((data) => {
+        if (data.configured && data.assistantId) {
+          // Server has LANGGRAPH_API_URL + LANGSMITH_API_KEY set — use proxy
+          const serverConfig: StandaloneConfig = {
+            deploymentUrl: "/api/langgraph",
+            assistantId: data.assistantId,
+          };
+          setConfig(serverConfig);
+          if (!assistantId) setAssistantId(data.assistantId);
+          return;
+        }
+        // Fall back to localStorage config
+        const savedConfig = getConfig();
+        if (savedConfig) {
+          setConfig(savedConfig);
+          if (!assistantId) setAssistantId(savedConfig.assistantId);
+        } else {
+          setConfigDialogOpen(true);
+        }
+      })
+      .catch(() => {
+        const savedConfig = getConfig();
+        if (savedConfig) {
+          setConfig(savedConfig);
+          if (!assistantId) setAssistantId(savedConfig.assistantId);
+        } else {
+          setConfigDialogOpen(true);
+        }
+      });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -257,8 +279,10 @@ function HomePageContent() {
     setConfig(newConfig);
   }, []);
 
-  const langsmithApiKey =
-    config?.langsmithApiKey || process.env.NEXT_PUBLIC_LANGSMITH_API_KEY || "";
+  // In proxy mode the API key stays server-side; pass empty string to client
+  const langsmithApiKey = config?.deploymentUrl === "/api/langgraph"
+    ? ""
+    : config?.langsmithApiKey ?? "";
 
   if (!config) {
     return (
