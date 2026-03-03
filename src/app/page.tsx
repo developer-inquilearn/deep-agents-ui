@@ -14,8 +14,27 @@ import {
   ResizablePanelGroup,
 } from "@/components/ui/resizable";
 import { ThreadList } from "@/app/components/ThreadList";
-import { ChatProvider } from "@/providers/ChatProvider";
+import { ChatProvider, useChatContext } from "@/providers/ChatProvider";
 import { ChatInterface } from "@/app/components/ChatInterface";
+import { TasksFilesSidebar } from "@/app/components/TasksFilesSidebar";
+
+function AgentSidebarPanel() {
+  const { todos, files, setFiles } = useChatContext();
+  return (
+    <ResizablePanel
+      id="agent-sidebar"
+      order={3}
+      defaultSize={22}
+      minSize={15}
+      maxSize={40}
+      className="relative border-l border-border"
+    >
+      <div className="absolute inset-0 overflow-y-auto">
+        <TasksFilesSidebar todos={todos} files={files} setFiles={setFiles} />
+      </div>
+    </ResizablePanel>
+  );
+}
 
 interface HomePageInnerProps {
   config: StandaloneConfig;
@@ -158,45 +177,48 @@ function HomePageInner({
         </header>
 
         <div className="flex-1 overflow-hidden">
-          <ResizablePanelGroup
-            direction="horizontal"
-            autoSaveId="standalone-chat"
+          <ChatProvider
+            activeAssistant={assistant}
+            onHistoryRevalidate={() => mutateThreads?.()}
           >
-            {sidebar && (
-              <>
-                <ResizablePanel
-                  id="thread-history"
-                  order={1}
-                  defaultSize={25}
-                  minSize={20}
-                  className="relative min-w-[380px]"
-                >
-                  <ThreadList
-                    onThreadSelect={async (id) => {
-                      await setThreadId(id);
-                    }}
-                    onMutateReady={(fn) => setMutateThreads(() => fn)}
-                    onClose={() => setSidebar(null)}
-                    onInterruptCountChange={setInterruptCount}
-                  />
-                </ResizablePanel>
-                <ResizableHandle />
-              </>
-            )}
-
-            <ResizablePanel
-              id="chat"
-              className="relative flex flex-col"
-              order={2}
+            <ResizablePanelGroup
+              direction="horizontal"
+              autoSaveId="standalone-chat"
             >
-              <ChatProvider
-                activeAssistant={assistant}
-                onHistoryRevalidate={() => mutateThreads?.()}
+              {sidebar && (
+                <>
+                  <ResizablePanel
+                    id="thread-history"
+                    order={1}
+                    defaultSize={25}
+                    minSize={20}
+                    className="relative min-w-[380px]"
+                  >
+                    <ThreadList
+                      onThreadSelect={async (id) => {
+                        await setThreadId(id);
+                      }}
+                      onMutateReady={(fn) => setMutateThreads(() => fn)}
+                      onClose={() => setSidebar(null)}
+                      onInterruptCountChange={setInterruptCount}
+                    />
+                  </ResizablePanel>
+                  <ResizableHandle />
+                </>
+              )}
+
+              <ResizablePanel
+                id="chat"
+                className="relative flex flex-col"
+                order={2}
               >
                 <ChatInterface assistant={assistant} />
-              </ChatProvider>
-            </ResizablePanel>
-          </ResizablePanelGroup>
+              </ResizablePanel>
+
+              <ResizableHandle />
+              <AgentSidebarPanel />
+            </ResizablePanelGroup>
+          </ChatProvider>
         </div>
       </div>
     </>
