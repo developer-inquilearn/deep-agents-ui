@@ -239,7 +239,7 @@ function HomePageContent() {
         if (data.configured && data.assistantId) {
           // Server has LANGGRAPH_API_URL + LANGSMITH_API_KEY set — use proxy
           const serverConfig: StandaloneConfig = {
-            deploymentUrl: "/api/langgraph",
+            deploymentUrl: `${window.location.origin}/api/langgraph`,
             assistantId: data.assistantId,
           };
           setConfig(serverConfig);
@@ -280,7 +280,7 @@ function HomePageContent() {
   }, []);
 
   // In proxy mode the API key stays server-side; pass empty string to client
-  const langsmithApiKey = config?.deploymentUrl === "/api/langgraph"
+  const langsmithApiKey = config?.deploymentUrl?.includes("/api/langgraph")
     ? ""
     : config?.langsmithApiKey ?? "";
 
