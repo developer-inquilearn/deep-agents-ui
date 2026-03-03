@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useCallback, Suspense } from "react";
+import { PinGate } from "@/app/components/PinGate";
 import { useQueryState } from "nuqs";
 import { getConfig, saveConfig, StandaloneConfig } from "@/lib/config";
 import { ConfigDialog } from "@/app/components/ConfigDialog";
@@ -302,14 +303,16 @@ function HomePageContent() {
 
 export default function HomePage() {
   return (
-    <Suspense
-      fallback={
-        <div className="flex h-screen items-center justify-center">
-          <p className="text-muted-foreground">Loading...</p>
-        </div>
-      }
-    >
-      <HomePageContent />
-    </Suspense>
+    <PinGate>
+      <Suspense
+        fallback={
+          <div className="flex h-screen items-center justify-center">
+            <p className="text-muted-foreground">Loading...</p>
+          </div>
+        }
+      >
+        <HomePageContent />
+      </Suspense>
+    </PinGate>
   );
 }
