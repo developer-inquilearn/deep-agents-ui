@@ -20,6 +20,64 @@ import { useChatContext } from "@/providers/ChatProvider";
 import { cn } from "@/lib/utils";
 import { FileViewDialog } from "@/app/components/FileViewDialog";
 
+// Parse a file path into its base name and version number.
+// e.g. "/task-documents/nighttime-routine-v2.md" → { base: "nighttime-routine", version: 2 }
+// Files without a version suffix get version: null.
+function parseFileVersion(filePath: string): { base: string; version: number | null } {
+  const fileName = filePath.split("/").pop() ?? filePath;
+  const nameWithoutExt = fileName.replace(/\.md$/, "");
+  const match = nameWithoutExt.match(/^(.+)-v(\d+)$/);
+  if (match) {
+    return { base: match[1], version: parseInt(match[2], 10) };
+  }
+  return { base: nameWithoutExt, version: null };
+}
+
+function extractContent(raw: unknown): string {
+  if (typeof raw === "object" && raw !== null && "content" in raw) {
+    const arr = (raw as { content: unknown }).content;
+    return Array.isArray(arr) ? arr.join("\n") : String(arr ?? "");
+  }
+  return String(raw ?? "");
+}
+
+function FileButton({
+  filePath,
+  files,
+  onSelect,
+  dimmed,
+}: {
+  filePath: string;
+  files: Record<string, string>;
+  onSelect: (file: FileItem) => void;
+  dimmed?: boolean;
+}) {
+  const fileName = filePath.split("/").pop() ?? filePath;
+  const fileContent = extractContent(files[filePath]);
+  return (
+    <button
+      type="button"
+      onClick={() => onSelect({ path: filePath, content: fileContent })}
+      className={cn(
+        "cursor-pointer space-y-1 truncate rounded-md border border-border px-2 py-3 shadow-sm transition-colors",
+        dimmed && "opacity-50"
+      )}
+      style={{ backgroundColor: "var(--color-file-button)" }}
+      onMouseEnter={(e) => {
+        e.currentTarget.style.backgroundColor = "var(--color-file-button-hover)";
+      }}
+      onMouseLeave={(e) => {
+        e.currentTarget.style.backgroundColor = "var(--color-file-button)";
+      }}
+    >
+      <FileText size={24} className="mx-auto text-muted-foreground" />
+      <span className="mx-auto block w-full truncate break-words text-center text-sm leading-relaxed text-foreground">
+        {fileName}
+      </span>
+    </button>
+  );
+}
+
 export function FilesPopover({
   files,
   setFiles,
@@ -30,6 +88,7 @@ export function FilesPopover({
   editDisabled: boolean;
 }) {
   const [selectedFile, setSelectedFile] = useState<FileItem | null>(null);
+  const [oldVersionsOpen, setOldVersionsOpen] = useState(false);
 
   const handleSaveFile = useCallback(
     async (fileName: string, content: string) => {
@@ -39,65 +98,92 @@ export function FilesPopover({
     [files, setFiles]
   );
 
+  // Group files: for each base name keep only the highest version as "latest";
+  // everything else goes into "older". Unversioned files are always "latest".
+  const { latestFiles, olderFiles } = useMemo(() => {
+    // Map base name → { path, version }[]
+    const groups: Record<string, { path: string; version: number | null }[]> = {};
+    for (const filePath of Object.keys(files)) {
+      const { base, version } = parseFileVersion(filePath);
+      if (!groups[base]) groups[base] = [];
+      groups[base].push({ path: filePath, version });
+    }
+
+    const latest: string[] = [];
+    const older: string[] = [];
+
+    for (const entries of Object.values(groups)) {
+      if (entries.length === 1) {
+        latest.push(entries[0].path);
+        continue;
+      }
+      // Sort descending by version (null treated as 0)
+      const sorted = [...entries].sort(
+        (a, b) => (b.version ?? 0) - (a.version ?? 0)
+      );
+      latest.push(sorted[0].path);
+      older.push(...sorted.slice(1).map((e) => e.path));
+    }
+
+    return { latestFiles: latest.sort(), olderFiles: older.sort() };
+  }, [files]);
+
+  if (Object.keys(files).length === 0) {
+    return (
+      <div className="flex h-full items-center justify-center p-4 text-center">
+        <p className="text-xs text-muted-foreground">No files created yet</p>
+      </div>
+    );
+  }
+
   return (
     <>
-      {Object.keys(files).length === 0 ? (
-        <div className="flex h-full items-center justify-center p-4 text-center">
-          <p className="text-xs text-muted-foreground">No files created yet</p>
+      <div className="space-y-4 p-2">
+        {/* Latest versions grid */}
+        <div className="grid grid-cols-[repeat(auto-fill,minmax(120px,1fr))] gap-2">
+          {latestFiles.map((filePath) => (
+            <FileButton
+              key={filePath}
+              filePath={filePath}
+              files={files}
+              onSelect={setSelectedFile}
+            />
+          ))}
         </div>
-      ) : (
-        <div className="grid grid-cols-[repeat(auto-fill,minmax(256px,1fr))] gap-2">
-          {Object.keys(files).map((file) => {
-            const filePath = String(file);
-            const rawContent = files[file];
-            let fileContent: string;
-            if (
-              typeof rawContent === "object" &&
-              rawContent !== null &&
-              "content" in rawContent
-            ) {
-              const contentArray = (rawContent as { content: unknown }).content;
-              if (Array.isArray(contentArray)) {
-                fileContent = contentArray.join("\n");
-              } else {
-                fileContent = String(contentArray || "");
-              }
-            } else {
-              fileContent = String(rawContent || "");
-            }
 
-            return (
-              <button
-                key={filePath}
-                type="button"
-                onClick={() =>
-                  setSelectedFile({ path: filePath, content: fileContent })
-                }
-                className="cursor-pointer space-y-1 truncate rounded-md border border-border px-2 py-3 shadow-sm transition-colors"
-                style={{
-                  backgroundColor: "var(--color-file-button)",
-                }}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.backgroundColor =
-                    "var(--color-file-button-hover)";
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.backgroundColor =
-                    "var(--color-file-button)";
-                }}
-              >
-                <FileText
-                  size={24}
-                  className="mx-auto text-muted-foreground"
-                />
-                <span className="mx-auto block w-full truncate break-words text-center text-sm leading-relaxed text-foreground">
-                  {filePath}
-                </span>
-              </button>
-            );
-          })}
-        </div>
-      )}
+        {/* Older versions collapsible */}
+        {olderFiles.length > 0 && (
+          <div>
+            <button
+              type="button"
+              onClick={() => setOldVersionsOpen((v) => !v)}
+              className="flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground hover:text-foreground"
+            >
+              <ChevronDown
+                size={12}
+                className={cn(
+                  "transition-transform duration-200",
+                  oldVersionsOpen ? "rotate-180" : "rotate-0"
+                )}
+              />
+              Previous Versions ({olderFiles.length})
+            </button>
+            {oldVersionsOpen && (
+              <div className="mt-2 grid grid-cols-[repeat(auto-fill,minmax(120px,1fr))] gap-2">
+                {olderFiles.map((filePath) => (
+                  <FileButton
+                    key={filePath}
+                    filePath={filePath}
+                    files={files}
+                    onSelect={setSelectedFile}
+                    dimmed
+                  />
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+      </div>
 
       {selectedFile && (
         <FileViewDialog
