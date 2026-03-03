@@ -20,52 +20,6 @@ import { useChatContext } from "@/providers/ChatProvider";
 import { cn } from "@/lib/utils";
 import { FileViewDialog } from "@/app/components/FileViewDialog";
 
-const FOLDER_LABELS: Record<string, string> = {
-  "schedule": "Schedule",
-  "task-documents": "Tasks",
-  "profile": "Profile",
-};
-
-function getFileContent(raw: string): string {
-  if (typeof raw === "object" && raw !== null && "content" in (raw as object)) {
-    const arr = (raw as { content: unknown }).content;
-    return Array.isArray(arr) ? arr.join("\n") : String(arr || "");
-  }
-  return String(raw || "");
-}
-
-function FileCard({
-  filePath,
-  fileContent,
-  onClick,
-}: {
-  filePath: string;
-  fileContent: string;
-  onClick: () => void;
-}) {
-  const fileName = filePath.split("/").pop() ?? filePath;
-  return (
-    <button
-      key={filePath}
-      type="button"
-      onClick={onClick}
-      className="cursor-pointer space-y-1 truncate rounded-md border border-border px-2 py-3 shadow-sm transition-colors"
-      style={{ backgroundColor: "var(--color-file-button)" }}
-      onMouseEnter={(e) => {
-        e.currentTarget.style.backgroundColor = "var(--color-file-button-hover)";
-      }}
-      onMouseLeave={(e) => {
-        e.currentTarget.style.backgroundColor = "var(--color-file-button)";
-      }}
-    >
-      <FileText size={24} className="mx-auto text-muted-foreground" />
-      <span className="mx-auto block w-full truncate break-words text-center text-sm leading-relaxed text-foreground">
-        {fileName}
-      </span>
-    </button>
-  );
-}
-
 export function FilesPopover({
   files,
   setFiles,
@@ -85,50 +39,65 @@ export function FilesPopover({
     [files, setFiles]
   );
 
-  // Group files by their top-level folder
-  const grouped = useMemo(() => {
-    const groups: Record<string, string[]> = {};
-    for (const filePath of Object.keys(files)) {
-      const parts = filePath.replace(/^\//, "").split("/");
-      const folder = parts.length > 1 ? parts[0] : "other";
-      if (!groups[folder]) groups[folder] = [];
-      groups[folder].push(filePath);
-    }
-    return groups;
-  }, [files]);
-
-  if (Object.keys(files).length === 0) {
-    return (
-      <div className="flex h-full items-center justify-center p-4 text-center">
-        <p className="text-xs text-muted-foreground">No files created yet</p>
-      </div>
-    );
-  }
-
   return (
     <>
-      <div className="space-y-4 p-2">
-        {Object.entries(grouped).map(([folder, filePaths]) => (
-          <div key={folder}>
-            <h3 className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-tertiary px-1">
-              {FOLDER_LABELS[folder] ?? folder}
-            </h3>
-            <div className="grid grid-cols-[repeat(auto-fill,minmax(120px,1fr))] gap-2">
-              {filePaths.map((filePath) => {
-                const fileContent = getFileContent(files[filePath]);
-                return (
-                  <FileCard
-                    key={filePath}
-                    filePath={filePath}
-                    fileContent={fileContent}
-                    onClick={() => setSelectedFile({ path: filePath, content: fileContent })}
-                  />
-                );
-              })}
-            </div>
-          </div>
-        ))}
-      </div>
+      {Object.keys(files).length === 0 ? (
+        <div className="flex h-full items-center justify-center p-4 text-center">
+          <p className="text-xs text-muted-foreground">No files created yet</p>
+        </div>
+      ) : (
+        <div className="grid grid-cols-[repeat(auto-fill,minmax(256px,1fr))] gap-2">
+          {Object.keys(files).map((file) => {
+            const filePath = String(file);
+            const rawContent = files[file];
+            let fileContent: string;
+            if (
+              typeof rawContent === "object" &&
+              rawContent !== null &&
+              "content" in rawContent
+            ) {
+              const contentArray = (rawContent as { content: unknown }).content;
+              if (Array.isArray(contentArray)) {
+                fileContent = contentArray.join("\n");
+              } else {
+                fileContent = String(contentArray || "");
+              }
+            } else {
+              fileContent = String(rawContent || "");
+            }
+
+            return (
+              <button
+                key={filePath}
+                type="button"
+                onClick={() =>
+                  setSelectedFile({ path: filePath, content: fileContent })
+                }
+                className="cursor-pointer space-y-1 truncate rounded-md border border-border px-2 py-3 shadow-sm transition-colors"
+                style={{
+                  backgroundColor: "var(--color-file-button)",
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.backgroundColor =
+                    "var(--color-file-button-hover)";
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.backgroundColor =
+                    "var(--color-file-button)";
+                }}
+              >
+                <FileText
+                  size={24}
+                  className="mx-auto text-muted-foreground"
+                />
+                <span className="mx-auto block w-full truncate break-words text-center text-sm leading-relaxed text-foreground">
+                  {filePath}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+      )}
 
       {selectedFile && (
         <FileViewDialog
