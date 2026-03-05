@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useStream } from "@langchain/langgraph-sdk/react";
 import {
   type Message,
@@ -99,6 +99,41 @@ export function useChat({
     [stream, activeAssistant?.config]
   );
 
+  // Files from stream state, falling back to pre-loaded files from the most recent thread
+  const [preloadedFiles, setPreloadedFiles] = useState<Record<string, string>>({});
+  const streamFiles = stream.values.files ?? {};
+  const hasStreamFiles = Object.keys(streamFiles).length > 0;
+
+  useEffect(() => {
+    if (hasStreamFiles) {
+      setPreloadedFiles({});
+      return;
+    }
+    // Fetch files from the most recent thread so the sidebar is populated on load
+    let cancelled = false;
+    client.threads
+      .search({ limit: 20 })
+      .then(async (threads) => {
+        for (const t of threads) {
+          if (t.thread_id === threadId) continue;
+          try {
+            const state = await client.threads.getState(t.thread_id);
+            const files = (state.values as StateType | undefined)?.files;
+            if (files && Object.keys(files).length > 0) {
+              if (!cancelled) setPreloadedFiles(files);
+              return;
+            }
+          } catch {
+            // skip threads with no state
+          }
+        }
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [threadId, hasStreamFiles]); // eslint-disable-line react-hooks/exhaustive-deps
+
   const setFiles = useCallback(
     async (files: Record<string, string>) => {
       if (!threadId) return;
@@ -148,7 +183,7 @@ export function useChat({
   return {
     stream,
     todos: stream.values.todos ?? [],
-    files: stream.values.files ?? {},
+    files: hasStreamFiles ? streamFiles : preloadedFiles,
     email: stream.values.email,
     ui: stream.values.ui,
     setFiles,

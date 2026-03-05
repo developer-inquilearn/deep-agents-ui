@@ -204,7 +204,7 @@ export const TasksFilesSidebar = React.memo<{
 }>(({ todos, files, setFiles }) => {
   const { isLoading, interrupt } = useChatContext();
   const [tasksOpen, setTasksOpen] = useState(false);
-  const [filesOpen, setFilesOpen] = useState(false);
+  const [filesOpen, setFilesOpen] = useState(true);
 
   // Track previous counts to detect when content goes from empty to having items
   const prevTodosCount = useRef(todos.length);
